@@ -30,9 +30,13 @@ services:
       JWT_EXPIRES_IN: 7d
       FRONTEND_ORIGIN: http://localhost
       AUTH_MODE: cookie
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: expense-backend
     depends_on:
       mysql:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   frontend:
     build: ../expense-frontend-v1
@@ -41,6 +45,7 @@ services:
       - "80:80"
     depends_on:
       - backend
+      - otel-collector
 
   # --- Phase 2a: metrics collection (see ./prometheus, ./grafana) ---
 
@@ -112,6 +117,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
 
   # --- Phase 2b (continued): log shipping — Loki + Promtail ---
 
@@ -138,6 +144,29 @@ services:
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
+
+  # --- Phase 2c: traces — OTel Collector + Tempo ---
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: otel-collector
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol/config.yaml:ro
+    command: ["--config=/etc/otelcol/config.yaml"]
+    ports:
+      - "4318:4318"
+      - "4317:4317"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    # Local-disk storage, single binary — fine for a teaching lab; object
+    # storage is a real-deployment concern this POC doesn't need.
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
 
 volumes:
   expense_mysql_data:

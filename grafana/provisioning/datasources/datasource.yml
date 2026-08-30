@@ -8,10 +8,32 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: false
+    jsonData:
+      # Bridge #2: a diamond marker on a histogram panel, keyed off the
+      # trace_id exemplar label set in src/metrics.js, that jumps to Tempo.
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
 
   - name: Loki
     uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
+    editable: false
+    jsonData:
+      # Bridge #1: turns the trace_id field every backend/nginx JSON log line
+      # carries (src/middleware/requestLogger.js) into a clickable link that
+      # opens that request's full span tree in Tempo.
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id":"(\w+)"'
+          name: TraceID
+          url: '$${__value.raw}'
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
     editable: false
