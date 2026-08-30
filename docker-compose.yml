@@ -69,6 +69,10 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor
     privileged: true
+    # Docker >=20.10 gives containers a private cgroup namespace by default on
+    # cgroup v2 hosts. Without this, cadvisor only ever sees its own isolated
+    # view of the cgroup tree and can't enumerate sibling containers at all.
+    cgroup: host
     devices:
       - /dev/kmsg
     volumes:
