@@ -111,6 +111,33 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+      - loki
+
+  # --- Phase 2b (continued): log shipping — Loki + Promtail ---
+
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: loki
+    # No custom config mounted — the image's built-in local-config.yaml
+    # (filesystem storage, single binary) is fine for a teaching lab and
+    # keeps this light on a t3.micro. Not published to the host; only
+    # Grafana and Promtail talk to it, over observability-net.
+
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: promtail
+    volumes:
+      # Docker writes every container's stdout/stderr to JSON log files here
+      # regardless of what format the app itself logs in — this is what
+      # Promtail actually tails.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Needed for docker_sd_configs auto-discovery (container name/service
+      # labels) — same auto-discovery instinct cadvisor uses for metrics.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
 
 volumes:
   expense_mysql_data:
