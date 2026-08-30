@@ -47,8 +47,12 @@ services:
   mysqld-exporter:
     image: prom/mysqld-exporter:v0.15.1
     container_name: mysqld-exporter
-    environment:
-      DATA_SOURCE_NAME: "metrics_exporter:metrics_exporter_devpass@tcp(mysql:3306)/"
+    # v0.15.x dropped DATA_SOURCE_NAME support — credentials come from a
+    # mounted my.cnf file instead (see ./mysqld-exporter/.my.cnf).
+    command:
+      - --config.my-cnf=/etc/mysqld-exporter/.my.cnf
+    volumes:
+      - ./mysqld-exporter/.my.cnf:/etc/mysqld-exporter/.my.cnf:ro
     depends_on:
       mysql:
         condition: service_healthy
