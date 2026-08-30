@@ -1,0 +1,33 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'expense-backend'
+    static_configs:
+      - targets: ['backend:4000']
+        labels:
+          tier: backend
+
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysqld-exporter:9104']
+        labels:
+          tier: mysql
+
+  - job_name: 'nginx-frontend'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          tier: frontend
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          tier: infra
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          tier: infra
