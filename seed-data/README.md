@@ -42,3 +42,40 @@ After it finishes, wait a scrape interval or two (15s, per `prometheus.yml`)
 and check:
 - Prometheus (`:9090`) — `expenses_created_total`, `users_registered_total`, etc.
 - Grafana (`:3000`) → Expense Tracker → "Expense Tracker Overview" dashboard.
+
+## Concurrent load — `load-test.js`
+
+`seed.js` runs users one round at a time — fine for putting a non-flat
+history on a dashboard, but it never produces genuinely overlapping
+requests. `load-test.js` does: every simulated user runs its own action loop
+concurrently (`Promise.all`, not a round-robin), with a weighted mix of
+actions (default 75% create / 20% edit / 5% delete) and randomized
+"think time" between actions. Good for exercising exemplars, concurrent DB
+load, or anything that only shows up under real parallel traffic.
+
+```
+cd seed-data
+docker run --rm --network observability-net -v "$PWD:/app" -w /app node:20-alpine node load-test.js
+```
+
+Tunables (env vars, all optional):
+
+| Var | Default | Meaning |
+|---|---|---|
+| `API_BASE_URL` | `http://backend:4000` | backend base URL |
+| `LOAD_USERS` | `50` | number of concurrent simulated users |
+| `LOAD_ITERATIONS` | `20` | actions per user |
+| `LOAD_CREATE_PCT` | `75` | % of actions that create an expense |
+| `LOAD_EDIT_PCT` | `20` | % of actions that edit one |
+| `LOAD_DELETE_PCT` | `5` | % of actions that delete one (documentation only — the split is really `100 - CREATE - EDIT`) |
+| `LOAD_MIN_THINK_MS` / `LOAD_MAX_THINK_MS` | `300` / `1500` | random delay range between one user's actions |
+
+Users are `load-user-1@example.com` .. `load-user-N@example.com` (password
+`loadpassword123`), separate from `seed.js`'s `seed-user-*` accounts so the
+two scripts don't collide. Each user creates before editing/deleting anything
+— early iterations always create regardless of the roll, since there's
+nothing yet to act on otherwise.
+
+Prints a summary on completion: total create/edit/delete counts and any
+errors (e.g. a transient failure under load) with the failing user and
+message.
