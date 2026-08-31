@@ -37,6 +37,22 @@ services:
       # the duration of a Phase 5 failure-injection run, then comment back
       # out and `docker compose up -d --force-recreate backend`:
       ENABLE_DEBUG_ROUTES: "true"
+      # claude-phase-6.md §6 — off by default, same reasoning as
+      # ENABLE_DEBUG_ROUTES above. Requires the volumes: entry below to be
+      # uncommented too, or /agent-remediation/restart will 500 (no socket
+      # to talk to) even with the route registered.
+      ENABLE_AGENT_REMEDIATION: "true"
+    # claude-phase-6.md §6.2 — read-WRITE, unlike every other docker.sock
+    # mount in this file (cadvisor/promtail/rca-agent below all mount it
+    # :ro). This is the one place in the whole stack a container gets real
+    # power over the Docker daemon — restart is scoped server-side to just
+    # this container (routes/agentRemediation.js's ALLOWED_CONTAINERS), but
+    # the mount itself doesn't know that; anything else that ever ran inside
+    # this container would have the same access. Uncomment only alongside
+    # ENABLE_AGENT_REMEDIATION above, for a supervised session, then remove
+    # both and rebuild — don't leave this mounted long-term.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       mysql:
         condition: service_healthy
@@ -191,6 +207,51 @@ services:
     command: ["-config.file=/etc/tempo.yml"]
     volumes:
       - ./tempo.yml:/etc/tempo.yml:ro
+
+  # --- Phase 6: RCA agent (claude-phase-6.md) ---
+
+  rca-agent:
+    build: ../rca-agent
+    container_name: rca-agent
+    # Opt-in via Compose profiles: excluded from a plain `docker compose up`
+    # (so it doesn't show up as a crash-looping/exited container every time
+    # you bring the rest of the stack up without Anthropic/Slack
+    # credentials configured) — start it explicitly once those are set:
+    #   docker compose --profile rca-agent up -d --build rca-agent
+    # (naming it directly also works without --profile, same as any other
+    # explicitly-named service).
+    profiles: ["rca-agent"]
+    environment:
+      # Plain (no `:?required` guard, deliberately): that syntax fails
+      # variable interpolation for the WHOLE compose file the moment any one
+      # of these three is unset — which would break every other
+      # `docker compose` command against this file too (backend, prometheus,
+      # anything), not just ones touching rca-agent. Left blank/unset here,
+      # this service will build and start, then immediately exit on its own
+      # (src/config.js's requireEnv throws) — loud failure scoped to just
+      # this one container, not a landmine for the rest of the stack. Set
+      # real values via observability/.env (docker compose reads it
+      # automatically) before actually starting this service.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+      SLACK_CHANNEL_ID: ${SLACK_CHANNEL_ID}
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
+      BACKEND_INTERNAL_URL: http://backend:4000
+    # claude-phase-6.md §7.1 — sibling container on the same network,
+    # needed because check_docker_state requires the host-bound Docker
+    # socket. :ro here, deliberately different from backend's read-write
+    # mount above — this container only ever lists/inspects/reads logs; the
+    # one write action (restart) is delegated to backend's own wrapper
+    # instead of this container getting write access too.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+      - backend
 
 volumes:
   expense_mysql_data:
