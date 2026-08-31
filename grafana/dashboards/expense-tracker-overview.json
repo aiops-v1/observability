@@ -221,7 +221,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket{host!=\"*\"}[5m])) by (le))",
           "legendFormat": "nginx (full request)",
           "refId": "A"
         },

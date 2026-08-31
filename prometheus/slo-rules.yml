@@ -16,29 +16,39 @@ groups:
       # characters), and summing with no `code` filter at all correctly
       # totals across all five class series, since sum() aggregates over
       # any label it isn't grouping by.
+      #
+      # host!="*" — found live, by querying this metric with no host filter
+      # in Prometheus's own UI: nginx-module-vts emits a `host="*"` series
+      # that's its own built-in "all vhosts combined" total, IN ADDITION TO
+      # the real per-vhost series (`host="_"`, this app's only server_name).
+      # With one vhost, the two are numerically identical, so summing both
+      # silently doubles every count. Doesn't change *these* ratios (doubling
+      # numerator and denominator equally cancels out) but would corrupt any
+      # raw-count query someone writes later — excluded here so this metric
+      # is never a landmine regardless of how it's queried.
       - record: sli:availability:ratio_rate5m
         expr: |
-          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[5m]))
+          sum(rate(nginx_vts_server_requests_total{host!="*",code!~"5.."}[5m]))
           /
-          sum(rate(nginx_vts_server_requests_total[5m]))
+          sum(rate(nginx_vts_server_requests_total{host!="*"}[5m]))
 
       - record: sli:availability:ratio_rate1h
         expr: |
-          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[1h]))
+          sum(rate(nginx_vts_server_requests_total{host!="*",code!~"5.."}[1h]))
           /
-          sum(rate(nginx_vts_server_requests_total[1h]))
+          sum(rate(nginx_vts_server_requests_total{host!="*"}[1h]))
 
       - record: sli:availability:ratio_rate6h
         expr: |
-          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[6h]))
+          sum(rate(nginx_vts_server_requests_total{host!="*",code!~"5.."}[6h]))
           /
-          sum(rate(nginx_vts_server_requests_total[6h]))
+          sum(rate(nginx_vts_server_requests_total{host!="*"}[6h]))
 
       - record: sli:availability:ratio_rate3d
         expr: |
-          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[3d]))
+          sum(rate(nginx_vts_server_requests_total{host!="*",code!~"5.."}[3d]))
           /
-          sum(rate(nginx_vts_server_requests_total[3d]))
+          sum(rate(nginx_vts_server_requests_total{host!="*"}[3d]))
 
       # --- Diagnostic (backend-based, not alerted on) ---
       - record: sli:backend:availability:ratio_rate5m
@@ -66,17 +76,19 @@ groups:
       # as the actual "fast enough" threshold: real k6 load-test data against
       # this stack (claude-phase-4.md) showed p95 ~13.7ms under load, so
       # 100ms is real headroom, not just whatever happened to be configured.
+      # host!="*" here too — same nginx-module-vts "all vhosts combined"
+      # pseudo-series as the availability rules above; see that comment.
       - record: sli:latency:fast_ratio_rate5m
         expr: |
-          sum(rate(nginx_vts_server_request_duration_seconds_bucket{le="0.100"}[5m]))
+          sum(rate(nginx_vts_server_request_duration_seconds_bucket{host!="*",le="0.100"}[5m]))
           /
-          sum(rate(nginx_vts_server_request_duration_seconds_count[5m]))
+          sum(rate(nginx_vts_server_request_duration_seconds_count{host!="*"}[5m]))
 
       - record: sli:latency:fast_ratio_rate1h
         expr: |
-          sum(rate(nginx_vts_server_request_duration_seconds_bucket{le="0.100"}[1h]))
+          sum(rate(nginx_vts_server_request_duration_seconds_bucket{host!="*",le="0.100"}[1h]))
           /
-          sum(rate(nginx_vts_server_request_duration_seconds_count[1h]))
+          sum(rate(nginx_vts_server_request_duration_seconds_count{host!="*"}[1h]))
 
       # --- Diagnostic (backend-based, not alerted on) ---
       # le="0.1", not "0.8" (the spec's placeholder, also not a real bucket

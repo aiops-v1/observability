@@ -61,7 +61,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "ALERTS{slo=~\".+\"}",
+          "expr": "ALERTS",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -160,7 +160,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket{host!=\"*\"}[5m])) by (le))",
           "legendFormat": "nginx",
           "refId": "A"
         },
@@ -176,13 +176,14 @@
       "id": 7,
       "type": "timeseries",
       "title": "Request rate by status class",
+      "description": "host!=\"*\" excludes nginx-module-vts's own built-in \"all vhosts combined\" pseudo-series (found live, by querying this metric with no host filter in Prometheus's own UI) — without it, every line here reads exactly double the real rate, since the real per-vhost series (host=\"_\") and the module's own aggregate both get summed together.",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(nginx_vts_server_requests_total[5m])) by (code)",
+          "expr": "sum(rate(nginx_vts_server_requests_total{host!=\"*\"}[5m])) by (code)",
           "legendFormat": "{{code}}",
           "refId": "A"
         }
