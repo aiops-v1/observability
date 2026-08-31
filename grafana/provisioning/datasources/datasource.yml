@@ -37,3 +37,16 @@ datasources:
     access: proxy
     url: http://tempo:3200
     editable: false
+    jsonData:
+      # Bridge #1, reverse direction: from an open trace, jump to its
+      # matching log lines in Loki. Can't scope the query by service first —
+      # promtail-config.yml only labels streams by "container"/"service" from
+      # the docker-compose service name (e.g. "backend"), which doesn't match
+      # the OTEL service.name spans carry (e.g. "expense-backend") — so this
+      # searches across all containers for the trace_id string instead.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+        customQuery: true
+        query: '{container=~".+"} |= "$${__trace.traceId}"'
