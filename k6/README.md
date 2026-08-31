@@ -36,11 +36,17 @@ auth/setup step differs, per claude-phase-4.md §3.
 
 Each VU authenticates **once**, not once per iteration (bcrypt is
 deliberately slow — hammering `/auth/signup` every iteration would measure
-bcrypt's cost, not the app). This works because k6 runs each VU as its own
-isolated JS instance, so a module-scope variable (`sessionReady` in each
-script) persists across that VU's iterations without needing `setup()` for
-per-VU state — `setup()` here is used only for the one-time pool creation in
-`load-seeded.js`.
+bcrypt's cost, not the app). The module-scope `sessionReady` variable in each
+script correctly persists across that VU's iterations (k6 runs each VU as its
+own isolated JS instance) — but the session **cookie** itself does not:
+k6's automatic per-VU jar only lives for a single iteration, confirmed by
+running `load-signup.js` once and watching every VU's first request succeed
+and every later iteration 401. So `lib/session.js` captures the
+`Set-Cookie` value explicitly at signup/signin time and every script threads
+it through as a literal `Cookie` header on every request afterwards — the
+same manual approach `seed-data/*.js` already uses, just needed here too.
+`setup()` in `load-seeded.js` is unrelated to this — it only runs once,
+total, to create the reused account pool.
 
 ## 3. Running it
 

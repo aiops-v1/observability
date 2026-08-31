@@ -49,20 +49,25 @@ export function setup() {
 // load-signup.js — see its comment for why module-scope state is enough.
 let sessionReady = false;
 let categories = [];
+let cookieHeader = null;
 
 function ensureSession(pool) {
   if (sessionReady) return;
   const account = pool[Math.floor(Math.random() * pool.length)];
-  const res = signin(API_BASE, account.email, account.password);
+  const { res, cookieHeader: ch } = signin(API_BASE, account.email, account.password);
   if (res.status !== 200) {
     throw new Error(`signin failed for ${account.email}: ${res.status} ${res.body}`);
   }
-  categories = loadCategories(API_BASE);
+  if (!ch) {
+    throw new Error(`signin for ${account.email} succeeded but set no session cookie`);
+  }
+  cookieHeader = ch;
+  categories = loadCategories(API_BASE, cookieHeader);
   sessionReady = true;
 }
 
 export default function (data) {
   ensureSession(data.pool);
-  runMix(API_BASE, categories);
+  runMix(API_BASE, categories, cookieHeader);
   sleep(0.5 + Math.random());
 }

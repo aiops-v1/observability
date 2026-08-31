@@ -35,22 +35,27 @@ export const options = {
 // round-trip, per claude-phase-4.md §2.
 let sessionReady = false;
 let categories = [];
+let cookieHeader = null;
 
 function ensureSession() {
   if (sessionReady) return;
   // Unique per VU per run, so re-running this script never collides with a
   // previous run's accounts.
   const email = `k6-signup-${exec.vu.idInTest}-${Date.now()}@example.com`;
-  const res = signup(API_BASE, email, 'k6password123', `K6 Signup VU ${exec.vu.idInTest}`);
+  const { res, cookieHeader: ch } = signup(API_BASE, email, 'k6password123', `K6 Signup VU ${exec.vu.idInTest}`);
   if (res.status !== 201) {
     throw new Error(`signup failed for ${email}: ${res.status} ${res.body}`);
   }
-  categories = loadCategories(API_BASE);
+  if (!ch) {
+    throw new Error(`signup for ${email} succeeded but set no session cookie`);
+  }
+  cookieHeader = ch;
+  categories = loadCategories(API_BASE, cookieHeader);
   sessionReady = true;
 }
 
 export default function () {
   ensureSession();
-  runMix(API_BASE, categories);
+  runMix(API_BASE, categories, cookieHeader);
   sleep(0.5 + Math.random());
 }
