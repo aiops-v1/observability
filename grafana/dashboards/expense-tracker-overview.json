@@ -176,7 +176,7 @@
           "id": "organize",
           "options": {
             "excludeByName": { "__name__": true },
-            "indexByName": {},
+            "indexByName": { "Time": 0, "Value": 1, "instance": 2, "job": 3, "tier": 4 },
             "renameByName": {}
           }
         }
