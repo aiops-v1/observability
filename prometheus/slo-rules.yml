@@ -1,0 +1,101 @@
+# claude-phase-4b.md §3 — SLI recording rules.
+#
+# Official (nginx-based, `sli:` prefix) — what the burn-rate alerts in
+# slo-alerts.yml actually reference. Diagnostic (backend-based,
+# `sli:backend:` prefix) — recorded for dashboards/RCA only, never alerted on
+# (see the one-official-objective design decision at the top of the spec).
+groups:
+  - name: slo-availability
+    interval: 30s
+    rules:
+      # --- Official (nginx-based) ---
+      # nginx-module-vts's `code` label value is literally the string "5xx"
+      # (a status *class*, not an exact code — confirmed against the
+      # module's own source) — {code!~"5.."} still correctly excludes it
+      # (the regex's two `.` wildcards happily match the literal "x"
+      # characters), and summing with no `code` filter at all correctly
+      # totals across all five class series, since sum() aggregates over
+      # any label it isn't grouping by.
+      - record: sli:availability:ratio_rate5m
+        expr: |
+          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[5m]))
+          /
+          sum(rate(nginx_vts_server_requests_total[5m]))
+
+      - record: sli:availability:ratio_rate1h
+        expr: |
+          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[1h]))
+          /
+          sum(rate(nginx_vts_server_requests_total[1h]))
+
+      - record: sli:availability:ratio_rate6h
+        expr: |
+          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[6h]))
+          /
+          sum(rate(nginx_vts_server_requests_total[6h]))
+
+      - record: sli:availability:ratio_rate3d
+        expr: |
+          sum(rate(nginx_vts_server_requests_total{code!~"5.."}[3d]))
+          /
+          sum(rate(nginx_vts_server_requests_total[3d]))
+
+      # --- Diagnostic (backend-based, not alerted on) ---
+      - record: sli:backend:availability:ratio_rate5m
+        expr: |
+          sum(rate(http_requests_total{status_code!~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+
+      - record: sli:backend:availability:ratio_rate1h
+        expr: |
+          sum(rate(http_requests_total{status_code!~"5.."}[1h]))
+          /
+          sum(rate(http_requests_total[1h]))
+
+  - name: slo-latency
+    interval: 30s
+    rules:
+      # --- Official (nginx-based) ---
+      # le="0.100", not "0.9" (the spec's placeholder) or "0.1": 0.9 isn't a
+      # configured bucket boundary at all (expense-frontend-v1/nginx.conf's
+      # vhost_traffic_status_histogram_buckets has no 0.9 — a bucket filter
+      # only matches an exact configured boundary, there's no interpolation),
+      # and nginx-module-vts formats the boundary it does have (0.1) as the
+      # *string* "0.100" (%.3f in its own source), not "0.1". 100ms chosen
+      # as the actual "fast enough" threshold: real k6 load-test data against
+      # this stack (claude-phase-4.md) showed p95 ~13.7ms under load, so
+      # 100ms is real headroom, not just whatever happened to be configured.
+      - record: sli:latency:fast_ratio_rate5m
+        expr: |
+          sum(rate(nginx_vts_server_request_duration_seconds_bucket{le="0.100"}[5m]))
+          /
+          sum(rate(nginx_vts_server_request_duration_seconds_count[5m]))
+
+      - record: sli:latency:fast_ratio_rate1h
+        expr: |
+          sum(rate(nginx_vts_server_request_duration_seconds_bucket{le="0.100"}[1h]))
+          /
+          sum(rate(nginx_vts_server_request_duration_seconds_count[1h]))
+
+      # --- Diagnostic (backend-based, not alerted on) ---
+      # le="0.1", not "0.8" (the spec's placeholder, also not a real bucket
+      # boundary — prom-client's default buckets, used by
+      # http_request_duration_seconds, don't include 0.8 either). Same 100ms
+      # threshold as the official SLI above, deliberately: both histograms
+      # were configured with the same boundaries specifically for apples-to-
+      # apples comparison (claude-phase-4a.md), and there's no confirmed real
+      # measurement yet showing nginx's overhead is large enough in this lab
+      # to justify a genuinely different number — recalibrate independently
+      # if/when real data says otherwise (§1.2's own instruction), not before.
+      - record: sli:backend:latency:fast_ratio_rate5m
+        expr: |
+          sum(rate(http_request_duration_seconds_bucket{le="0.1"}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count[5m]))
+
+      - record: sli:backend:latency:fast_ratio_rate1h
+        expr: |
+          sum(rate(http_request_duration_seconds_bucket{le="0.1"}[1h]))
+          /
+          sum(rate(http_request_duration_seconds_count[1h]))

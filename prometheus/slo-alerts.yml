@@ -1,0 +1,42 @@
+# claude-phase-4b.md §4 — burn-rate alerting rules. Reference only the
+# official (nginx-based) `sli:` recordings from slo-rules.yml — never the
+# `sli:backend:` diagnostic ones, per the one-official-objective design
+# decision (two independent alerts for the same user-facing objective would
+# double-page on a single incident).
+#
+# No Alertmanager in this stack — deliberately out of scope
+# (claude-phase-4b.md §7). These rules still evaluate and show up on
+# Prometheus's own Alerts page (http://<host>:9090/alerts) with the normal
+# Inactive -> Pending -> Firing lifecycle; nothing routes a firing alert to a
+# human yet, that's a separate future step.
+groups:
+  - name: slo-burn-rate-availability
+    rules:
+      # Fast burn: page-worthy. Both a short and a longer window must agree,
+      # to avoid paging on a single brief blip.
+      - alert: AvailabilitySLOFastBurn
+        expr: |
+          (1 - sli:availability:ratio_rate1h) > (14 * 0.005)
+          and
+          (1 - sli:availability:ratio_rate5m) > (14 * 0.005)
+        for: 2m
+        labels:
+          severity: page
+          slo: availability
+        annotations:
+          summary: "Availability error budget burning fast (14x rate)"
+          description: "At this rate, the 30-day error budget will be exhausted in ~2 days. Check recent deploys and backend error logs first."
+
+      # Slow burn: ticket-worthy, not urgent.
+      - alert: AvailabilitySLOSlowBurn
+        expr: |
+          (1 - sli:availability:ratio_rate6h) > (6 * 0.005)
+          and
+          (1 - sli:availability:ratio_rate3d) > (6 * 0.005)
+        for: 15m
+        labels:
+          severity: ticket
+          slo: availability
+        annotations:
+          summary: "Availability error budget burning at a sustained elevated rate (6x)"
+          description: "At this rate, the 30-day error budget will be exhausted in ~5 days. Investigate during business hours, not urgent."
