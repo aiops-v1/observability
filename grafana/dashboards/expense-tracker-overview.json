@@ -144,6 +144,43 @@
       "title": "Scrape target health (up)",
       "gridPos": { "h": 7, "w": 6, "x": 0, "y": 19 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "green", "value": 1 }
+                  ]
+                }
+              },
+              { "id": "mappings", "value": [
+                { "type": "value", "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } } }
+              ] }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "__name__": true },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
