@@ -1,0 +1,192 @@
+{
+  "id": null,
+  "uid": "slo-alerting-overview",
+  "title": "SLO & Alerting Overview",
+  "tags": ["expense-tracker", "phase-4c"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    { "id": 100, "type": "row", "title": "Status at a glance", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Availability error budget remaining (30d)",
+      "description": "Positive = budget remaining, trending toward 0 = SLO at risk, negative = already breached. See claude-phase-4b.md §5.",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(sli:availability:ratio_rate3d - 0.995) / (1 - 0.995) * 100",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Current alert states",
+      "description": "Empty is a correct, healthy state — Prometheus's ALERTS metric only emits a series once a rule enters pending or firing; there's no 'inactive' row at all. During Phase 5 failure injection, a new row appearing here is the thing to watch for.",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Value": true, "__name__": true },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "ALERTS{slo=~\".+\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    { "id": 101, "type": "row", "title": "Burn rate — the centerpiece", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Availability burn rate vs fast/slow thresholds",
+      "description": "How many multiples of the allowed failure rate are currently being burned. Watch this line cross 14 at the same moment AvailabilitySLOFastBurn appears as 'firing' in the table above — that's the key cross-panel check (claude-phase-4b.md §4, claude-phase-4c.md §2.5).",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "thresholdsStyle": { "mode": "line" } },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 6 },
+              { "color": "red", "value": 14 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(1 - sli:availability:ratio_rate1h) / 0.005",
+          "legendFormat": "current burn rate (1h)",
+          "refId": "A"
+        }
+      ]
+    },
+
+    { "id": 102, "type": "row", "title": "Official vs diagnostic SLIs", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Availability SLI: official (nginx) vs diagnostic (backend)",
+      "description": "If only the official line dips, the problem is at nginx. If both dip together, it's downstream — app or DB. claude-phase-4b.md §1.3.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sli:availability:ratio_rate5m",
+          "legendFormat": "official (nginx)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sli:backend:availability:ratio_rate5m",
+          "legendFormat": "diagnostic (backend)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Latency SLI (fast-enough ratio): official (nginx) vs diagnostic (backend)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sli:latency:fast_ratio_rate5m",
+          "legendFormat": "official (nginx)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sli:backend:latency:fast_ratio_rate5m",
+          "legendFormat": "diagnostic (backend)",
+          "refId": "B"
+        }
+      ]
+    },
+
+    { "id": 103, "type": "row", "title": "Supporting detail", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 } },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "nginx vs backend p95 raw latency",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "nginx",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "backend",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Request rate by status class",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(nginx_vts_server_requests_total[5m])) by (code)",
+          "legendFormat": "{{code}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}
