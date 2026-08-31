@@ -28,7 +28,7 @@ Tunables (env vars, all optional):
 
 | Var | Default | Meaning |
 |---|---|---|
-| `API_BASE_URL` | `http://backend:4000` | backend base URL, reachable from wherever the script runs |
+| `API_BASE_URL` | `http://backend:4000` | backend base URL, reachable from wherever the script runs. Hits the backend directly, bypassing nginx — no `expense-frontend-nginx` span on the resulting traces. Set to `http://frontend/api` to route through nginx instead and get the full nginx→backend→mysql chain (still no browser span — that only exists in real browser JS). |
 | `SEED_USERS` | `5` | number of fake users created/reused |
 | `SEED_EXPENSES_PER_ROUND` | `4` | expenses created per user per round |
 | `SEED_ROUNDS` | `10` | number of rounds |
@@ -62,7 +62,7 @@ Tunables (env vars, all optional):
 
 | Var | Default | Meaning |
 |---|---|---|
-| `API_BASE_URL` | `http://backend:4000` | backend base URL |
+| `API_BASE_URL` | `http://backend:4000` | backend base URL — same direct-vs-`http://frontend/api` tradeoff as `seed.js`, see above |
 | `LOAD_USERS` | `50` | number of concurrent simulated users |
 | `LOAD_ITERATIONS` | `20` | actions per user |
 | `LOAD_CREATE_PCT` | `75` | % of actions that create an expense |
