@@ -32,6 +32,11 @@ services:
       AUTH_MODE: cookie
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_SERVICE_NAME: expense-backend
+      # claude-phase-5.md — off by default, on purpose (§3.2: must never be
+      # reachable outside an active teaching session). Uncomment only for
+      # the duration of a Phase 5 failure-injection run, then comment back
+      # out and `docker compose up -d --force-recreate backend`:
+      ENABLE_DEBUG_ROUTES: "true"
     depends_on:
       mysql:
         condition: service_healthy
@@ -113,6 +118,7 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/slo-rules.yml:/etc/prometheus/slo-rules.yml:ro
       - ./prometheus/slo-alerts.yml:/etc/prometheus/slo-alerts.yml:ro
+      - ./prometheus/cause-alerts.yml:/etc/prometheus/cause-alerts.yml:ro
     ports:
       - "9090:9090"
     depends_on:

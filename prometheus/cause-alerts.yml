@@ -1,0 +1,118 @@
+# claude-phase-5.md §1 — cause-level (fast, technical) alerts, distinct from
+# the SLO burn-rate alerts in slo-alerts.yml (claude-phase-4b.md). These are
+# what Phase 5's failure scenarios are built to trigger.
+groups:
+  - name: cause-level
+    rules:
+      - alert: BackendDown
+        expr: up{job="expense-backend"} == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "Backend scrape target is down"
+          description: "Prometheus can't scrape backend:4000/metrics — the process is likely stopped or crashed (claude-phase-5.md scenario 2.1)."
+
+      - alert: MySQLDown
+        expr: mysql_up == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "mysqld_exporter can't reach MySQL"
+          description: "mysql_up == 0 means mysqld_exporter's own probe of the MySQL server is failing — distinct from up{job=\"mysql\"}, which only reflects whether mysqld_exporter's own /metrics endpoint is reachable and stays 1 even when the database it's probing is down (claude-phase-5.md scenario 2.2, the deliberate 'UP != healthy' demo)."
+
+      # claude-phase-5.md's own alert catalog uses up{job="nginx-frontend"}
+      # here — corrected. That job (observability/prometheus/prometheus.yml)
+      # scrapes nginx-exporter, a *sidecar*, not nginx itself: if the
+      # frontend container goes down, nginx-exporter keeps running and its
+      # own /metrics stays scrapable (up{job="nginx-frontend"} would stay 1
+      # the whole time — same exporter-vs-target gap MySQLDown above exists
+      # to avoid). The nginx-vts job (claude-phase-4a.md) scrapes
+      # frontend:8080 directly, so its up value actually reflects whether
+      # nginx itself is reachable.
+      - alert: NginxDown
+        expr: up{job="nginx-vts"} == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "nginx scrape target is down"
+          description: "Prometheus can't scrape frontend:8080/status/format/prometheus directly — nginx itself is likely down, not just an exporter."
+
+      - alert: MySQLConnectionPoolNearExhaustion
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.85
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "MySQL connections approaching max_connections"
+          description: "threads_connected is above 85% of MySQL's own max_connections ceiling — distinct from the backend's own DB_POOL_SIZE (claude-phase-5.md scenario 2.3 resizes that via /debug/pool/resize, which is what actually drives this)."
+
+      - alert: MySQLSlowQueryRateHigh
+        expr: rate(mysql_global_status_slow_queries[5m]) > 1
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "MySQL slow query rate elevated"
+          description: "More than 1 slow query/sec (long_query_time=1s, expense-mysql-v1's Dockerfile) sustained for 5m — claude-phase-5.md scenario 2.4 (n+1 query pattern) is the intended trigger."
+
+      # cAdvisor-based. claude-phase-5.md's catalog states these as "> 85%
+      # per container" / "> 85% of limit" — but no container in this
+      # docker-compose.yml has a CPU or memory limit configured at all, so
+      # container_spec_memory_limit_bytes (the denominator a percent-of-limit
+      # query needs) is effectively unbounded and the spec's version of this
+      # alert would never fire, on a healthy system or a broken one. Rewritten
+      # as absolute thresholds instead — 85% of one core, and a fixed memory
+      # figure. The memory number specifically is a placeholder: it hasn't
+      # been calibrated against this stack's real baseline usage (a t3.small
+      # has 2GB total, shared across 11 containers) — watch
+      # container_memory_usage_bytes during a quiet period first and adjust
+      # before relying on this in a real session.
+      - alert: ContainerCPUHigh
+        expr: rate(container_cpu_usage_seconds_total{name!=""}[5m]) > 0.85
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Container {{ $labels.name }} CPU > 85% of one core (sustained)"
+          description: "claude-phase-5.md scenario 2.5 (busy-loop injection) is the intended trigger."
+
+      - alert: ContainerMemoryHigh
+        expr: container_memory_usage_bytes{name!=""} > 600 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Container {{ $labels.name }} memory usage above 600MiB (sustained)"
+          description: "Placeholder threshold, not yet calibrated against this stack's real baseline (see this file's comment above). claude-phase-5.md scenario 2.5 is the intended trigger."
+
+      - alert: Backend5xxRateHigh
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Backend 5xx rate above 5%"
+          description: "claude-phase-5.md scenario 2.2 (MySQL down, backend up) is the intended trigger — 'UP != healthy' shows up here as 5xxs, not as BackendDown."
+
+      # Referenced by claude-phase-5.md scenario 2.6 ("ContainerRestarted
+      # fires repeatedly") but never actually defined in §1's alert catalog —
+      # added here since the flapping scenario depends on it existing.
+      # cAdvisor's container_start_time_seconds jumps to a new value on every
+      # container (re)start; changes() over a window counts how many times
+      # that happened, so >0 means at least one restart in the window. No
+      # `for:` — flapping detection wants to know about every restart
+      # immediately, not debounced.
+      - alert: ContainerRestarted
+        expr: changes(container_start_time_seconds{name!=""}[10m]) > 0
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Container {{ $labels.name }} restarted within the last 10m"
+          description: "claude-phase-5.md scenario 2.6 (flapping) is the intended trigger — also the counter-reset-handling lesson: http_requests_total resets to 0 on each restart, confirm rate() still computes sanely across it."

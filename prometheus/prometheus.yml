@@ -8,6 +8,7 @@ global:
 rule_files:
   - /etc/prometheus/slo-rules.yml
   - /etc/prometheus/slo-alerts.yml
+  - /etc/prometheus/cause-alerts.yml
 
 scrape_configs:
   - job_name: 'expense-backend'
