@@ -10,7 +10,7 @@
 //   k6 run -e BASE_URL=http://localhost -e PROFILE=baseline load-seeded.js
 
 import { sleep } from 'k6';
-import { stagesForProfile } from './lib/profiles.js';
+import { optionsForProfile } from './lib/profiles.js';
 import { signup, signin, loadCategories } from './lib/session.js';
 import { runMix } from './lib/requestMix.js';
 
@@ -20,7 +20,7 @@ const PROFILE = __ENV.PROFILE || 'baseline';
 const POOL_SIZE = Number(__ENV.POOL_SIZE || 20);
 
 export const options = {
-  stages: stagesForProfile(PROFILE),
+  ...optionsForProfile(PROFILE),
   thresholds: {
     http_req_duration: ['p(95)<800'],
     // See load-signup.js for why http_req_failed is deliberately not here.
@@ -36,7 +36,7 @@ export function setup() {
   for (let i = 1; i <= POOL_SIZE; i++) {
     const email = `k6-seeded-${i}@example.com`;
     const password = 'k6seededpass123';
-    const res = signup(API_BASE, email, password, `K6 Seeded User ${i}`);
+    const { res } = signup(API_BASE, email, password, `K6 Seeded User ${i}`);
     if (res.status !== 201 && res.status !== 409) {
       throw new Error(`setup signup failed for ${email}: ${res.status} ${res.body}`);
     }

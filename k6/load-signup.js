@@ -9,7 +9,7 @@
 
 import { sleep } from 'k6';
 import exec from 'k6/execution';
-import { stagesForProfile } from './lib/profiles.js';
+import { optionsForProfile } from './lib/profiles.js';
 import { signup, loadCategories } from './lib/session.js';
 import { runMix } from './lib/requestMix.js';
 
@@ -18,7 +18,7 @@ const API_BASE = `${BASE_URL}/api`;
 const PROFILE = __ENV.PROFILE || 'baseline';
 
 export const options = {
-  stages: stagesForProfile(PROFILE),
+  ...optionsForProfile(PROFILE),
   thresholds: {
     http_req_duration: ['p(95)<800'],
     // Deliberately no http_req_failed threshold: this mix sends real 400/401

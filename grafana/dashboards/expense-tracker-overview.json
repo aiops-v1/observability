@@ -207,6 +207,37 @@
           "refId": "B"
         }
       ]
+    },
+
+    { "id": 103, "type": "row", "title": "nginx vs backend latency (claude-phase-4a)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 } },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "p95 request duration: nginx (VTS) vs backend",
+      "description": "The gap between the nginx and backend lines is nginx's own overhead (proxy time, queueing) — nginx's line should sit at or above the backend's, never below. Third line isolates time nginx spent waiting on the backend specifically (the upstream), as its own number rather than inferred from the gap.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_server_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "nginx (full request)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "backend",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(nginx_vts_upstream_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "nginx → backend (upstream wait)",
+          "refId": "C"
+        }
+      ]
     }
   ]
 }

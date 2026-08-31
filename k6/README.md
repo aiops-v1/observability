@@ -64,15 +64,35 @@ k6 run -e BASE_URL=http://localhost -e PROFILE=baseline load-signup.js
 - `BASE_URL` — defaults to `http://localhost`; set it to the host/IP/domain
   nginx is actually reachable on (e.g. an EC2 public IP) if k6 runs
   elsewhere.
-- `PROFILE` — one of `baseline` (default), `soak`, `ramp`, `spike` — see
-  `lib/profiles.js` for the exact stage definitions (mirrors
-  claude-phase-4.md §4). **Always run `baseline` first** to confirm the
-  pipeline works before anything heavier.
+- `PROFILE` — one of `baseline` (default), `soak`, `ramp`, `spike`, or
+  `burst` — see `lib/profiles.js` for the exact definitions (the first four
+  mirror claude-phase-4.md §4). **Always run `baseline` first** to confirm
+  the pipeline works before anything heavier.
 - `load-seeded.js` only: `POOL_SIZE` (default `20`) — number of accounts in
   the reused pool.
 
 Run baseline against `load-seeded.js` instead of `load-signup.js` by just
 swapping the filename — same env vars, same profiles.
+
+### `PROFILE=burst` — genuinely simultaneous VUs
+
+`baseline`/`soak`/`ramp`/`spike` all use k6's ramping-vus executor
+(`stages`), which *ramps* toward its target — even `spike`'s "sudden jump"
+climbs 10→100 over 20 seconds under the hood, not instantly. If what you
+actually want is "100 signups fired at the same instant," use `burst`
+instead — it switches to k6's `per-vu-iterations` executor, which spins up
+all VUs together and starts their first iteration (signup, or signin for
+`load-seeded.js`) as close to simultaneously as k6's scheduler allows:
+
+```
+k6 run -e BASE_URL=http://localhost -e PROFILE=burst load-signup.js
+```
+
+Tunables (env vars): `BURST_VUS` (default `100`), `BURST_ITERATIONS`
+(default `3` — each VU repeats the request mix this many times after its
+one-time signup, so most VUs land at least one `POST /expenses` given the
+mix's 25% create weight), `BURST_MAX_DURATION` (default `2m` — a safety cap,
+not a target).
 
 ## 4. What's actually sent
 

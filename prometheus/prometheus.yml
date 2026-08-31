@@ -20,6 +20,20 @@ scrape_configs:
         labels:
           tier: frontend
 
+  # claude-phase-4a.md: nginx-module-vts, scraped straight from nginx itself
+  # (no separate exporter container needed, unlike stub_status above) — adds
+  # request-duration histograms, which stub_status has no concept of at all.
+  # Kept alongside the stub_status-based job above rather than replacing it:
+  # the existing "MySQL connections & nginx request rate" Grafana panel
+  # already depends on nginx_http_requests_total (nginx-exporter's metric
+  # name), so retiring that job would silently break a working panel.
+  - job_name: 'nginx-vts'
+    static_configs:
+      - targets: ['frontend:8080']
+        labels:
+          tier: frontend
+    metrics_path: /status/format/prometheus
+
   - job_name: 'cadvisor'
     static_configs:
       - targets: ['cadvisor:8080']

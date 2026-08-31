@@ -118,6 +118,7 @@ services:
       - mysqld-exporter
       - nginx-exporter
       - cadvisor
+      - frontend
 
   grafana:
     image: grafana/grafana:11.3.0
